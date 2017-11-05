@@ -4,6 +4,7 @@
 
 #include <Tinyfont.h>
 #include <Arduboy2.h>
+#include "puzzles.h"
 
 #define GRID_WIDTH 15
 #define GRID_HEIGHT 7
@@ -18,22 +19,14 @@
 #define CS_X 1
 #define CS_FILL 2
 
-const bool puzzle1[15][7] = {
-  {1, 1, 1, 1, 1, 1, 1},
-  {1, 1, 1, 1, 1, 1, 1},
-  {1, 1, 1, 1, 1, 1, 1},
-  {1, 1, 1, 1, 1, 1, 1},
-  {1, 1, 1, 1, 1, 1, 1},
-  {1, 1, 1, 1, 1, 1, 1},
-  {1, 1, 1, 1, 1, 1, 1},
-  {1, 1, 1, 1, 1, 1, 1},
-  {1, 1, 1, 1, 1, 1, 1},
-  {1, 1, 1, 1, 1, 1, 1},
-  {1, 1, 1, 1, 1, 1, 1},
-  {1, 1, 1, 1, 1, 1, 1},
-  {1, 1, 1, 1, 1, 1, 1},
-  {1, 1, 1, 1, 1, 1, 1},
-  {1, 1, 1, 1, 1, 1, 1}
+const byte bitMaskForYIndex[7] PROGMEM {
+  0b01000000,
+  0b00100000,
+  0b00010000,
+  0b00001000,
+  0b00000100,
+  0b00000010,
+  0b00000001
 };
 
 struct Cell {
@@ -68,6 +61,7 @@ void setup() {
   arduboy.setFrameRate(30);
   arduboy.initRandomSeed();
   Serial.begin(9600);
+  Serial.println(puzzle1[0], BIN);
   initializePuzzle();
   initializeGrid();
 }
@@ -156,7 +150,7 @@ void drawGrid(){
 
   arduboy.fillRect(0, GRID_Y_OFFSET + 1 + (gameGrid.cursorY * (CELL_SIZE - 1)), GRID_X_OFFSET - 2, CELL_SIZE - 1, WHITE);
 
-  for(byte i = 0; i < GRID_HEIGHT; i++){
+  for (byte i = 0; i < GRID_HEIGHT; i++){
     drawHintRow(i);
   }
 
@@ -170,11 +164,11 @@ void drawHintColumn(byte columnIndex){
   byte drawIndexX = GRID_X_OFFSET + 2 + (columnIndex * (CELL_SIZE - 1));
   byte drawIndexY = GRID_Y_OFFSET - 7;
   byte zeroHints = 0;
+  tinyfont.setTextColor(gameGrid.cursorX != columnIndex);
   for (int i = COLUMN_HINT_MAX_NUMS - 1; i >= 0; i--){
     byte hintNum = gamePuzzle.columnHints[columnIndex][i];
     if (hintNum > 0) {
       tinyfont.setCursor(drawIndexX, drawIndexY);
-      tinyfont.setTextColor(gameGrid.cursorX != columnIndex);
       tinyfont.print(String(hintNum));
       drawIndexY -= 6;
     } else {
@@ -183,7 +177,6 @@ void drawHintColumn(byte columnIndex){
   }
   if (zeroHints >= COLUMN_HINT_MAX_NUMS){
     tinyfont.setCursor(drawIndexX, drawIndexY);
-    tinyfont.setTextColor(gameGrid.cursorX != columnIndex);
     tinyfont.print(F("0"));
   }
   tinyfont.setTextColor(WHITE);
@@ -193,12 +186,12 @@ void drawHintRow(byte rowIndex){
   byte drawIndexX = GRID_X_OFFSET - 7;
   byte drawIndexY = GRID_Y_OFFSET + 2 + (rowIndex * (CELL_SIZE - 1));
   byte zeroHints = 0;
+  tinyfont.setTextColor(gameGrid.cursorY != rowIndex);
   for (int i = ROW_HINT_MAX_NUMS - 1; i >= 0; i--){
     byte hintNum = gamePuzzle.rowHints[rowIndex][i];
     if (hintNum > 0) {
       if (hintNum > 9) { drawIndexX -= 5; }
       tinyfont.setCursor(drawIndexX, drawIndexY);
-      tinyfont.setTextColor(gameGrid.cursorY != rowIndex);
       tinyfont.print(String(hintNum));
       drawIndexX -= 6;
     } else {
@@ -207,7 +200,6 @@ void drawHintRow(byte rowIndex){
   }
   if (zeroHints >= ROW_HINT_MAX_NUMS){
     tinyfont.setCursor(drawIndexX, drawIndexY);
-    tinyfont.setTextColor(gameGrid.cursorY != rowIndex);
     tinyfont.print(F("0"));
   }
   tinyfont.setTextColor(WHITE);
@@ -217,19 +209,18 @@ void drawHintRow(byte rowIndex){
 /////////////////// Other /////////////
 
 void initializePuzzle(){
-  Puzzle randomPuzzle = generateRandomPuzzle();
   for (byte x = 0; x < GRID_WIDTH; x++){
     for (byte y = 0; y < GRID_HEIGHT; y++){
-      gamePuzzle.cellFilled[x][y] = randomPuzzle.cellFilled[x][y];
-      gamePuzzle.rowHints[y][0] = 0;
-      gamePuzzle.rowHints[y][1] = 0;
-      gamePuzzle.rowHints[y][2] = 0;
-      gamePuzzle.rowHints[y][3] = 0;
-      gamePuzzle.rowHints[y][4] = 0;
+      const byte * puzzleToLoad = &puzzles[0];
+      bool cellFilled = pgm_read_byte_near(&puzzleToLoad[x]) & pgm_read_byte_near(&bitMaskForYIndex[y]);
+      gamePuzzle.cellFilled[x][y] = cellFilled;
+      for (byte i = 0; i < ROW_HINT_MAX_NUMS; i++){
+        gamePuzzle.rowHints[y][i] = 0;
+      }
     }
-    gamePuzzle.columnHints[x][0] = 0;
-    gamePuzzle.columnHints[x][1] = 0;
-    gamePuzzle.columnHints[x][2] = 0;
+    for (byte i = 0; i < COLUMN_HINT_MAX_NUMS; i++){
+      gamePuzzle.columnHints[x][i] = 0;
+    }
   }
 
   for (byte x = 0; x < GRID_WIDTH; x++){
@@ -289,31 +280,5 @@ Cell* cursorCell(){
 
 int modulo(int x, int y){
   return x < 0 ? ((x + 1) % y) + y - 1 : x % y;
-}
-
-Puzzle generateRandomPuzzle(){
-  Puzzle randomPuzzle;
-  for (byte x = 0; x < GRID_WIDTH; x++){
-    for (byte y = 0; y < GRID_HEIGHT; y++){
-      randomPuzzle.cellFilled[x][y] = false;
-    }
-  }
-  
-  for (byte y = 0; y < GRID_HEIGHT; y++){
-    byte remainingCellIndicies[GRID_WIDTH] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 };
-    byte arrayLength = GRID_WIDTH;
-    byte numToFill = random(0, GRID_WIDTH + 1); 
-    while (numToFill > 0){
-      byte chosenIndex = remainingCellIndicies[random(0, arrayLength)];
-      randomPuzzle.cellFilled[chosenIndex][y] = true;
-      arrayLength--;
-      for (byte i = chosenIndex; i < arrayLength; i++){
-        remainingCellIndicies[i] = remainingCellIndicies[i+1];
-      }
-      numToFill--;
-    }
-  }
-  
-  return randomPuzzle;
 }
 

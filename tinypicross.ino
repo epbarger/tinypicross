@@ -13,10 +13,11 @@
 #define GRID_Y_OFFSET 20
 #define COLUMN_HINT_MAX_NUMS 3
 #define ROW_HINT_MAX_NUMS 5
-#define MENU_X_OFFSET 4
+
+#define MENU_X_OFFSET GRID_X_OFFSET
 #define MENU_Y_OFFSET GRID_Y_OFFSET
-#define MENU_WIDTH 20
-#define MENU_HEIGHT 6
+#define MENU_WIDTH GRID_WIDTH
+#define MENU_HEIGHT GRID_HEIGHT
 
 // Cell states
 #define CS_EMPTY 0
@@ -165,7 +166,7 @@ void drawState(){
   arduboy.clear();
   switch(gameState){
     case GS_MENU:
-      drawTitle();
+//      drawTitle();
       drawPuzzleSelection();
       break;
     case GS_PLAYING:
@@ -187,17 +188,14 @@ void drawPuzzleSelection(){
     for (byte y = 0; y < MENU_HEIGHT; y++){
       byte drawX = MENU_X_OFFSET + (x * (CELL_SIZE - 1));
       byte drawY = MENU_Y_OFFSET + (y * (CELL_SIZE - 1));
-//      if ((x+1) * (y+1) <= PUZZLE_COUNT){
+      if ((x+1) + (MENU_WIDTH * y) <= PUZZLE_COUNT){
         if (x==0 && y==0){
-//          arduboy.drawLine(drawX + 1, drawY + 4, drawX + 2, drawY + 5, WHITE);
-//          arduboy.drawLine(drawX + 5, drawY + 2, drawX + 2, drawY + 5, WHITE);
-            arduboy.fillRect(drawX+1, drawY+1, CELL_SIZE-2, CELL_SIZE-2, WHITE);
+          arduboy.fillRect(drawX+1, drawY+1, CELL_SIZE-2, CELL_SIZE-2, WHITE);
         } else {
-//          arduboy.fillRect(drawX+1, drawY+1, CELL_SIZE-2, CELL_SIZE-2, WHITE);
           arduboy.drawLine(drawX + 2, drawY + 2, drawX + 4, drawY + 4, WHITE);
           arduboy.drawLine(drawX + 4, drawY + 2, drawX + 2, drawY + 4, WHITE);
         }
-//      }
+      }
     }
   }
 
@@ -206,10 +204,9 @@ void drawPuzzleSelection(){
   arduboy.drawRect(cursorDrawX, cursorDrawY, CELL_SIZE, CELL_SIZE, BLACK);
   arduboy.drawRect(cursorDrawX - 1, cursorDrawY - 1, CELL_SIZE + 2, CELL_SIZE + 2, WHITE);
 
-  tinyfont.setCursor(MENU_X_OFFSET+1, 59);
-  char buffer[12];
-  sprintf(buffer, "PUZZLE %d", menu.cursorPuzzleNumber, 20*6);
-  tinyfont.print(buffer);
+  String cursorPuzzleNumber = String(menu.cursorPuzzleNumber);
+  drawMenuRow(cursorPuzzleNumber);
+  drawMenuColumn(cursorPuzzleNumber);
 }
 
 void drawHUD(){
@@ -254,17 +251,31 @@ void drawGrid(){
   arduboy.drawRect(cursorDrawX - 1, cursorDrawY - 1, CELL_SIZE + 2, CELL_SIZE + 2, WHITE);
 }
 
+void drawMenuColumn(String str){
+  arduboy.fillRect(GRID_X_OFFSET + 1 + (menu.cursorX * (CELL_SIZE - 1)), 0, CELL_SIZE - 1, GRID_Y_OFFSET - 2, WHITE);
+  
+  byte drawIndexX = GRID_X_OFFSET + 2 + (menu.cursorX * (CELL_SIZE - 1));
+  byte drawIndexY = GRID_Y_OFFSET - 7;
+  tinyfont.setTextColor(BLACK);
+  for (char i = str.length() - 1; i >= 0; i--){
+    tinyfont.setCursor(drawIndexX, drawIndexY);
+    tinyfont.print(str.charAt(i));
+    drawIndexY -= 5;
+  }
+  tinyfont.setTextColor(WHITE);
+}
+
 void drawHintColumn(byte columnIndex){
   byte drawIndexX = GRID_X_OFFSET + 2 + (columnIndex * (CELL_SIZE - 1));
   byte drawIndexY = GRID_Y_OFFSET - 7;
   byte zeroHints = 0;
   tinyfont.setTextColor(gameGrid.cursorX != columnIndex);
-  for (int i = COLUMN_HINT_MAX_NUMS - 1; i >= 0; i--){
+  for (char i = COLUMN_HINT_MAX_NUMS - 1; i >= 0; i--){
     byte hintNum = gamePuzzle.columnHints[columnIndex][i];
     if (hintNum > 0) {
       tinyfont.setCursor(drawIndexX, drawIndexY);
       tinyfont.print(String(hintNum));
-      drawIndexY -= 6;
+      drawIndexY -= 5;
     } else {
       zeroHints++;
     }
@@ -272,6 +283,20 @@ void drawHintColumn(byte columnIndex){
   if (zeroHints >= COLUMN_HINT_MAX_NUMS){
     tinyfont.setCursor(drawIndexX, drawIndexY);
     tinyfont.print(F("0"));
+  }
+  tinyfont.setTextColor(WHITE);
+}
+
+void drawMenuRow(String str){
+  arduboy.fillRect(0, GRID_Y_OFFSET + 1 + (menu.cursorY * (CELL_SIZE - 1)), GRID_X_OFFSET - 2, CELL_SIZE - 1, WHITE);
+
+  byte drawIndexX = GRID_X_OFFSET - 7;
+  byte drawIndexY = GRID_Y_OFFSET + 2 + (menu.cursorY * (CELL_SIZE - 1));
+  tinyfont.setTextColor(BLACK);
+  for (char i = str.length() - 1; i >= 0; i--){
+    tinyfont.setCursor(drawIndexX, drawIndexY);
+    tinyfont.print(str.charAt(i));
+    drawIndexX -= 5;
   }
   tinyfont.setTextColor(WHITE);
 }
@@ -306,7 +331,7 @@ void initializePuzzle(byte puzzleIndex){
   gamePuzzle.puzzleIndex = puzzleIndex;
   for (byte x = 0; x < GRID_WIDTH; x++){
     for (byte y = 0; y < GRID_HEIGHT; y++){
-      const byte * puzzleToLoad = &puzzles[puzzleIndex];
+      const byte * puzzleToLoad = (const byte * )&puzzles[puzzleIndex];
       bool cellFilled = pgm_read_byte_near(&puzzleToLoad[x]) & pgm_read_byte_near(&bitMaskForYIndex[y]);
       gamePuzzle.cellFilled[x][y] = cellFilled;
       for (byte i = 0; i < ROW_HINT_MAX_NUMS; i++){

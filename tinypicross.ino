@@ -13,11 +13,19 @@
 #define GRID_Y_OFFSET 20
 #define COLUMN_HINT_MAX_NUMS 3
 #define ROW_HINT_MAX_NUMS 5
+#define MENU_X_OFFSET 4
+#define MENU_Y_OFFSET GRID_Y_OFFSET
+#define MENU_WIDTH 20
+#define MENU_HEIGHT 6
 
 // Cell states
 #define CS_EMPTY 0
 #define CS_X 1
 #define CS_FILL 2
+
+// Game states
+#define GS_MENU 0
+#define GS_PLAYING 1
 
 const byte bitMaskForYIndex[7] PROGMEM {
   0b01000000,
@@ -37,8 +45,8 @@ struct Cell {
 struct Grid {
   public:
     Cell cells[GRID_WIDTH][GRID_HEIGHT];
-    int cursorX;
-    int cursorY;
+    char cursorX;
+    char cursorY;
 };
 
 struct Puzzle {
@@ -46,6 +54,14 @@ struct Puzzle {
     bool cellFilled[GRID_WIDTH][GRID_HEIGHT];
     byte columnHints[GRID_WIDTH][COLUMN_HINT_MAX_NUMS];
     byte rowHints[GRID_HEIGHT][ROW_HINT_MAX_NUMS];
+    byte puzzleIndex;
+};
+
+struct Menu {
+  public:
+    char cursorX;
+    char cursorY;
+    byte cursorPuzzleNumber;
 };
 
 Arduboy2 arduboy;
@@ -55,15 +71,19 @@ Tinyfont tinyfont = Tinyfont(arduboy.sBuffer, screenWidth, screenHeight);
 
 Grid gameGrid;
 Puzzle gamePuzzle;
+Menu menu;
+
+byte gameState = GS_MENU;
 
 void setup() {
   arduboy.begin();
   arduboy.setFrameRate(30);
   arduboy.initRandomSeed();
   Serial.begin(9600);
-  Serial.println(puzzle1[0], BIN);
-  initializePuzzle();
-  initializeGrid();
+  
+  menu.cursorX = 0;
+  menu.cursorY = 0;
+  menu.cursorPuzzleNumber = 1;
 }
 
 void loop() {
@@ -76,7 +96,37 @@ void loop() {
 
 void updateState(){
   arduboy.pollButtons();
-  updateGrid();
+  switch(gameState){
+    
+    case GS_MENU:
+      updateMenu();
+      break;
+    case GS_PLAYING:
+      updateGrid();
+      break;
+  }
+}
+
+void updateMenu(){
+  if (arduboy.justPressed(RIGHT_BUTTON)){
+    menu.cursorX = modulo(menu.cursorX + 1, MENU_WIDTH);
+  } else if (arduboy.justPressed(LEFT_BUTTON)){
+    menu.cursorX = modulo(menu.cursorX - 1, MENU_WIDTH);
+  }
+
+  if (arduboy.justPressed(DOWN_BUTTON)){
+    menu.cursorY = modulo(menu.cursorY + 1, MENU_HEIGHT);
+  } else if (arduboy.justPressed(UP_BUTTON)){
+    menu.cursorY = modulo(menu.cursorY - 1, MENU_HEIGHT);
+  } 
+
+  menu.cursorPuzzleNumber = (menu.cursorX + 1) + (MENU_WIDTH * (menu.cursorY));
+
+  if (arduboy.justPressed(A_BUTTON | B_BUTTON)){
+    gameState = GS_PLAYING;
+    startGame(menu.cursorPuzzleNumber - 1);
+  }
+
 }
 
 void updateGrid(){  
@@ -113,9 +163,53 @@ void updateGrid(){
 
 void drawState(){
   arduboy.clear();
-  drawHUD();
-  drawGrid();
+  switch(gameState){
+    case GS_MENU:
+      drawTitle();
+      drawPuzzleSelection();
+      break;
+    case GS_PLAYING:
+      drawHUD();
+      drawGrid();
+      break;
+  }
   arduboy.display();
+}
+
+void drawTitle(){
+  arduboy.setCursor(23,1);
+  arduboy.setTextSize(2);
+  arduboy.print(F("PICROSS"));
+}
+
+void drawPuzzleSelection(){
+  for (byte x = 0; x < MENU_WIDTH; x++){
+    for (byte y = 0; y < MENU_HEIGHT; y++){
+      byte drawX = MENU_X_OFFSET + (x * (CELL_SIZE - 1));
+      byte drawY = MENU_Y_OFFSET + (y * (CELL_SIZE - 1));
+//      if ((x+1) * (y+1) <= PUZZLE_COUNT){
+        if (x==0 && y==0){
+//          arduboy.drawLine(drawX + 1, drawY + 4, drawX + 2, drawY + 5, WHITE);
+//          arduboy.drawLine(drawX + 5, drawY + 2, drawX + 2, drawY + 5, WHITE);
+            arduboy.fillRect(drawX+1, drawY+1, CELL_SIZE-2, CELL_SIZE-2, WHITE);
+        } else {
+//          arduboy.fillRect(drawX+1, drawY+1, CELL_SIZE-2, CELL_SIZE-2, WHITE);
+          arduboy.drawLine(drawX + 2, drawY + 2, drawX + 4, drawY + 4, WHITE);
+          arduboy.drawLine(drawX + 4, drawY + 2, drawX + 2, drawY + 4, WHITE);
+        }
+//      }
+    }
+  }
+
+  byte cursorDrawX = MENU_X_OFFSET + (menu.cursorX * (CELL_SIZE - 1));
+  byte cursorDrawY = MENU_Y_OFFSET + (menu.cursorY * (CELL_SIZE - 1));
+  arduboy.drawRect(cursorDrawX, cursorDrawY, CELL_SIZE, CELL_SIZE, BLACK);
+  arduboy.drawRect(cursorDrawX - 1, cursorDrawY - 1, CELL_SIZE + 2, CELL_SIZE + 2, WHITE);
+
+  tinyfont.setCursor(MENU_X_OFFSET+1, 59);
+  char buffer[12];
+  sprintf(buffer, "PUZZLE %d", menu.cursorPuzzleNumber, 20*6);
+  tinyfont.print(buffer);
 }
 
 void drawHUD(){
@@ -208,10 +302,11 @@ void drawHintRow(byte rowIndex){
 
 /////////////////// Other /////////////
 
-void initializePuzzle(){
+void initializePuzzle(byte puzzleIndex){
+  gamePuzzle.puzzleIndex = puzzleIndex;
   for (byte x = 0; x < GRID_WIDTH; x++){
     for (byte y = 0; y < GRID_HEIGHT; y++){
-      const byte * puzzleToLoad = &puzzles[0];
+      const byte * puzzleToLoad = &puzzles[puzzleIndex];
       bool cellFilled = pgm_read_byte_near(&puzzleToLoad[x]) & pgm_read_byte_near(&bitMaskForYIndex[y]);
       gamePuzzle.cellFilled[x][y] = cellFilled;
       for (byte i = 0; i < ROW_HINT_MAX_NUMS; i++){
@@ -280,5 +375,10 @@ Cell* cursorCell(){
 
 int modulo(int x, int y){
   return x < 0 ? ((x + 1) % y) + y - 1 : x % y;
+}
+
+void startGame(byte puzzleIndex){
+  initializePuzzle(puzzleIndex);
+  initializeGrid();
 }
 

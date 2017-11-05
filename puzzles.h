@@ -1,3 +1,4 @@
+#define PUZZLE_COUNT 1
 
 const byte puzzle1[15] PROGMEM = {
   0b1111001,

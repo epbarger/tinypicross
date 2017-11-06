@@ -1,5 +1,11 @@
 /*
  * Tiny Arduboy version of Picross
+ * 
+ * ESSENTIAL TODO
+ * - check if puzzle has been finished
+ * - save/load if puzzles have been finished
+ * - abilty to clear saves (all face buttons on menu, brings up menu, press face again to clear)
+ * - import 162 real puzzles
  */
 
 #include <Tinyfont.h>
@@ -14,10 +20,10 @@
 #define COLUMN_HINT_MAX_NUMS 3
 #define ROW_HINT_MAX_NUMS 5
 
-#define MENU_X_OFFSET GRID_X_OFFSET
-#define MENU_Y_OFFSET GRID_Y_OFFSET
-#define MENU_WIDTH GRID_WIDTH
-#define MENU_HEIGHT GRID_HEIGHT
+#define MENU_X_OFFSET 18
+#define MENU_Y_OFFSET 8
+#define MENU_WIDTH 18
+#define MENU_HEIGHT 9
 
 // Cell states
 #define CS_EMPTY 0
@@ -27,6 +33,9 @@
 // Game states
 #define GS_MENU 0
 #define GS_PLAYING 1
+#define GS_PAUSED 2
+#define GS_WIN 3
+#define GS_DELAY 4
 
 const byte bitMaskForYIndex[7] PROGMEM {
   0b01000000,
@@ -75,6 +84,7 @@ Puzzle gamePuzzle;
 Menu menu;
 
 byte gameState = GS_MENU;
+bool okayToAbandon = false;
 
 void setup() {
   arduboy.begin();
@@ -85,6 +95,7 @@ void setup() {
   menu.cursorX = 0;
   menu.cursorY = 0;
   menu.cursorPuzzleNumber = 1;
+//  startGame(0);
 }
 
 void loop() {
@@ -98,13 +109,46 @@ void loop() {
 void updateState(){
   arduboy.pollButtons();
   switch(gameState){
-    
     case GS_MENU:
       updateMenu();
       break;
     case GS_PLAYING:
       updateGrid();
       break;
+    case GS_PAUSED:
+      updatePaused();
+      break;
+    case GS_DELAY:
+      updateDelay();
+      break;
+    case GS_WIN:
+      updateWin();
+      break;
+  }
+}
+
+void updateWin(){
+  if (arduboy.justPressed(A_BUTTON | B_BUTTON)) {
+    gameState = GS_MENU;
+  }
+}
+
+void updateDelay(){
+  delay(2000);
+  gameState = GS_WIN;
+}
+
+void updatePaused(){
+  if (!okayToAbandon && arduboy.notPressed(UP_BUTTON | DOWN_BUTTON | LEFT_BUTTON | RIGHT_BUTTON)){
+    okayToAbandon = true;
+  }
+  
+  if (okayToAbandon && arduboy.pressed(UP_BUTTON | DOWN_BUTTON | LEFT_BUTTON | RIGHT_BUTTON)){
+    okayToAbandon = false;
+    gameState = GS_MENU;
+  } else if (arduboy.justPressed(A_BUTTON | B_BUTTON)) {
+    okayToAbandon = false;
+    gameState = GS_PLAYING;
   }
 }
 
@@ -131,30 +175,34 @@ void updateMenu(){
 }
 
 void updateGrid(){  
-  if (arduboy.justPressed(RIGHT_BUTTON)){
-    gameGrid.cursorX = modulo(gameGrid.cursorX + 1, GRID_WIDTH);
-  } else if (arduboy.justPressed(LEFT_BUTTON)){
-    gameGrid.cursorX = modulo(gameGrid.cursorX - 1, GRID_WIDTH);
-  }
-
-  if (arduboy.justPressed(DOWN_BUTTON)){
-    gameGrid.cursorY = modulo(gameGrid.cursorY + 1, GRID_HEIGHT);
-  } else if (arduboy.justPressed(UP_BUTTON)){
-    gameGrid.cursorY = modulo(gameGrid.cursorY - 1, GRID_HEIGHT);
-  }
-
-  if (arduboy.justPressed(A_BUTTON)){
-    if (cursorCell()->state == CS_X){
-      cursorCell()->state = CS_EMPTY;
-    } else {
-      cursorCell()->state = CS_X;
+  if (arduboy.pressed(UP_BUTTON | DOWN_BUTTON | LEFT_BUTTON | RIGHT_BUTTON)){
+    gameState = GS_PAUSED;
+  } else {
+    if (arduboy.justPressed(RIGHT_BUTTON)){
+      gameGrid.cursorX = modulo(gameGrid.cursorX + 1, GRID_WIDTH);
+    } else if (arduboy.justPressed(LEFT_BUTTON)){
+      gameGrid.cursorX = modulo(gameGrid.cursorX - 1, GRID_WIDTH);
     }
-  } else if (arduboy.justPressed(B_BUTTON)){
-    if (cursorCell()->state == CS_FILL){
-      cursorCell()->state = CS_EMPTY;
-    } else {
-      if (gamePuzzle.cellFilled[gameGrid.cursorX][gameGrid.cursorY]) {
-        cursorCell()->state = CS_FILL;
+  
+    if (arduboy.justPressed(DOWN_BUTTON)){
+      gameGrid.cursorY = modulo(gameGrid.cursorY + 1, GRID_HEIGHT);
+    } else if (arduboy.justPressed(UP_BUTTON)){
+      gameGrid.cursorY = modulo(gameGrid.cursorY - 1, GRID_HEIGHT);
+    }
+  
+    if (arduboy.justPressed(A_BUTTON)){
+      if (cursorCell()->state == CS_X){
+        cursorCell()->state = CS_EMPTY;
+      } else {
+        cursorCell()->state = CS_X;
+      }
+    } else if (arduboy.justPressed(B_BUTTON)){
+      if (cursorCell()->state == CS_FILL){
+        cursorCell()->state = CS_EMPTY;
+      } else {
+        if (gamePuzzle.cellFilled[gameGrid.cursorX][gameGrid.cursorY]) {
+          cursorCell()->state = CS_FILL;
+        }
       }
     }
   }
@@ -166,21 +214,39 @@ void drawState(){
   arduboy.clear();
   switch(gameState){
     case GS_MENU:
-//      drawTitle();
+      drawTitle();
       drawPuzzleSelection();
       break;
     case GS_PLAYING:
-      drawHUD();
       drawGrid();
       break;
+    case GS_PAUSED:
+      drawGrid();
+      drawMessage(F("RETURN TO MENU?"),27,30);
+      break;
+    case GS_DELAY:
+      drawGrid();
+      break;
+    case GS_WIN:
+      drawGrid();
+      drawMessage(F("PUZZLE COMPLETE!"), 25, 30);
   }
   arduboy.display();
 }
 
+void drawMessage(String msg, byte x, byte y){
+  arduboy.fillRect(screenWidth / 8, screenHeight / 3, screenWidth - (screenWidth / 4), screenHeight - (2*screenHeight / 3), BLACK);
+  arduboy.drawRect(screenWidth / 8, screenHeight / 3, screenWidth - (screenWidth / 4), screenHeight - (2*screenHeight / 3), WHITE);
+  tinyfont.setCursor(x,y);
+  tinyfont.print(msg);
+}
+
 void drawTitle(){
-  arduboy.setCursor(23,1);
-  arduboy.setTextSize(2);
-  arduboy.print(F("PICROSS"));
+  arduboy.fillRect(0,0,screenWidth,6,WHITE);
+  tinyfont.setTextColor(BLACK);
+  tinyfont.setCursor(1,1);
+  tinyfont.print(F("TINY PICROSS"));
+  tinyfont.setTextColor(WHITE);
 }
 
 void drawPuzzleSelection(){
@@ -188,13 +254,11 @@ void drawPuzzleSelection(){
     for (byte y = 0; y < MENU_HEIGHT; y++){
       byte drawX = MENU_X_OFFSET + (x * (CELL_SIZE - 1));
       byte drawY = MENU_Y_OFFSET + (y * (CELL_SIZE - 1));
-      if ((x+1) + (MENU_WIDTH * y) <= PUZZLE_COUNT){
-        if (x==0 && y==0){
-          arduboy.fillRect(drawX+1, drawY+1, CELL_SIZE-2, CELL_SIZE-2, WHITE);
-        } else {
-          arduboy.drawLine(drawX + 2, drawY + 2, drawX + 4, drawY + 4, WHITE);
-          arduboy.drawLine(drawX + 4, drawY + 2, drawX + 2, drawY + 4, WHITE);
-        }
+      if (x==0 && y==0){
+        arduboy.fillRect(drawX+1, drawY+1, CELL_SIZE-2, CELL_SIZE-2, WHITE);
+      } else {
+        arduboy.drawLine(drawX + 2, drawY + 2, drawX + 4, drawY + 4, WHITE);
+        arduboy.drawLine(drawX + 4, drawY + 2, drawX + 2, drawY + 4, WHITE);
       }
     }
   }
@@ -206,12 +270,6 @@ void drawPuzzleSelection(){
 
   String cursorPuzzleNumber = String(menu.cursorPuzzleNumber);
   drawMenuRow(cursorPuzzleNumber);
-  drawMenuColumn(cursorPuzzleNumber);
-}
-
-void drawHUD(){
-//  arduboy.drawFastHLine(0, GRID_Y_OFFSET, screenWidth / 2, WHITE);
-//  arduboy.drawFastVLine(GRID_X_OFFSET, 0, screenHeight / 2, WHITE);
 }
 
 void drawGrid(){
@@ -251,16 +309,16 @@ void drawGrid(){
   arduboy.drawRect(cursorDrawX - 1, cursorDrawY - 1, CELL_SIZE + 2, CELL_SIZE + 2, WHITE);
 }
 
-void drawMenuColumn(String str){
-  arduboy.fillRect(GRID_X_OFFSET + 1 + (menu.cursorX * (CELL_SIZE - 1)), 0, CELL_SIZE - 1, GRID_Y_OFFSET - 2, WHITE);
-  
-  byte drawIndexX = GRID_X_OFFSET + 2 + (menu.cursorX * (CELL_SIZE - 1));
-  byte drawIndexY = GRID_Y_OFFSET - 7;
+void drawMenuRow(String str){
+  arduboy.fillRect(0, MENU_Y_OFFSET + 1 + (menu.cursorY * (CELL_SIZE - 1)), MENU_X_OFFSET - 2, CELL_SIZE - 1, WHITE);
+
+  byte drawIndexX = MENU_X_OFFSET - 7;
+  byte drawIndexY = MENU_Y_OFFSET + 2 + (menu.cursorY * (CELL_SIZE - 1));
   tinyfont.setTextColor(BLACK);
   for (char i = str.length() - 1; i >= 0; i--){
     tinyfont.setCursor(drawIndexX, drawIndexY);
     tinyfont.print(str.charAt(i));
-    drawIndexY -= 5;
+    drawIndexX -= 5;
   }
   tinyfont.setTextColor(WHITE);
 }
@@ -283,20 +341,6 @@ void drawHintColumn(byte columnIndex){
   if (zeroHints >= COLUMN_HINT_MAX_NUMS){
     tinyfont.setCursor(drawIndexX, drawIndexY);
     tinyfont.print(F("0"));
-  }
-  tinyfont.setTextColor(WHITE);
-}
-
-void drawMenuRow(String str){
-  arduboy.fillRect(0, GRID_Y_OFFSET + 1 + (menu.cursorY * (CELL_SIZE - 1)), GRID_X_OFFSET - 2, CELL_SIZE - 1, WHITE);
-
-  byte drawIndexX = GRID_X_OFFSET - 7;
-  byte drawIndexY = GRID_Y_OFFSET + 2 + (menu.cursorY * (CELL_SIZE - 1));
-  tinyfont.setTextColor(BLACK);
-  for (char i = str.length() - 1; i >= 0; i--){
-    tinyfont.setCursor(drawIndexX, drawIndexY);
-    tinyfont.print(str.charAt(i));
-    drawIndexX -= 5;
   }
   tinyfont.setTextColor(WHITE);
 }
@@ -331,7 +375,7 @@ void initializePuzzle(byte puzzleIndex){
   gamePuzzle.puzzleIndex = puzzleIndex;
   for (byte x = 0; x < GRID_WIDTH; x++){
     for (byte y = 0; y < GRID_HEIGHT; y++){
-      const byte * puzzleToLoad = (const byte * )&puzzles[puzzleIndex];
+      const byte * puzzleToLoad = puzzles[puzzleIndex];
       bool cellFilled = pgm_read_byte_near(&puzzleToLoad[x]) & pgm_read_byte_near(&bitMaskForYIndex[y]);
       gamePuzzle.cellFilled[x][y] = cellFilled;
       for (byte i = 0; i < ROW_HINT_MAX_NUMS; i++){

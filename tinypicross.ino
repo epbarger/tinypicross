@@ -2,7 +2,6 @@
  * Tiny Arduboy version of Picross
  * 
  * ESSENTIAL TODO
- * - check if puzzle has been finished
  * - save/load if puzzles have been finished
  * - abilty to clear saves (all face buttons on menu, brings up menu, press face again to clear)
  * - import 162 real puzzles
@@ -196,14 +195,16 @@ void updateGrid(){
       } else {
         cursorCell()->state = CS_X;
       }
+      checkPuzzleComplete();
     } else if (arduboy.justPressed(B_BUTTON)){
       if (cursorCell()->state == CS_FILL){
         cursorCell()->state = CS_EMPTY;
       } else {
-        if (gamePuzzle.cellFilled[gameGrid.cursorX][gameGrid.cursorY]) {
+//        if (gamePuzzle.cellFilled[gameGrid.cursorX][gameGrid.cursorY]) {
           cursorCell()->state = CS_FILL;
-        }
+//        }
       }
+      checkPuzzleComplete();
     }
   }
 }
@@ -449,5 +450,16 @@ int modulo(int x, int y){
 void startGame(byte puzzleIndex){
   initializePuzzle(puzzleIndex);
   initializeGrid();
+}
+
+void checkPuzzleComplete(){
+  for (byte x = 0; x < GRID_WIDTH; x++){
+    for (byte y = 0; y < GRID_HEIGHT; y++){
+      if (gamePuzzle.cellFilled[x][y] != (gameGrid.cells[x][y].state == CS_FILL)) {
+        return;
+      }
+    }
+  }
+  gameState = GS_DELAY;
 }
 

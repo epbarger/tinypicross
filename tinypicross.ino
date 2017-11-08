@@ -1,10 +1,5 @@
 /*
  * Tiny Arduboy version of Picross
- * 
- * ESSENTIAL TODO
- * - save/load if puzzles have been finished
- * - abilty to clear saves (all face buttons on menu, brings up menu, press face again to clear)
- * - import 162 real puzzles
  */
 
 #include <Tinyfont.h>
@@ -23,6 +18,9 @@
 #define MENU_Y_OFFSET 8
 #define MENU_WIDTH 18
 #define MENU_HEIGHT 9
+
+#define BASE_EEPROM_LOCATION 100
+#define SUPPORTED_PUZZLE_COUNT MENU_WIDTH * MENU_HEIGHT
 
 // Cell states
 #define CS_EMPTY 0
@@ -60,7 +58,7 @@ struct Grid {
 
 struct Puzzle {
   public:
-    bool cellFilled[GRID_WIDTH][GRID_HEIGHT];
+    bool cellFilled[GRID_WIDTH][GRID_HEIGHT]; // wasteful, but we have extra memory
     byte columnHints[GRID_WIDTH][COLUMN_HINT_MAX_NUMS];
     byte rowHints[GRID_HEIGHT][ROW_HINT_MAX_NUMS];
     byte puzzleIndex;
@@ -86,7 +84,11 @@ byte gameState = GS_MENU;
 bool okayToAbandon = false;
 
 void setup() {
-  arduboy.begin();
+  arduboy.boot();
+  arduboy.blank();
+  arduboy.flashlight();
+  arduboy.systemButtons();
+
   arduboy.setFrameRate(30);
   arduboy.initRandomSeed();
   Serial.begin(9600);
@@ -94,7 +96,7 @@ void setup() {
   menu.cursorX = 0;
   menu.cursorY = 0;
   menu.cursorPuzzleNumber = 1;
-//  startGame(0);
+  initEEPROM();
 }
 
 void loop() {
@@ -118,7 +120,8 @@ void updateState(){
       updatePaused();
       break;
     case GS_DELAY:
-      updateDelay();
+      delay(2000);
+      gameState = GS_WIN;
       break;
     case GS_WIN:
       updateWin();
@@ -130,11 +133,6 @@ void updateWin(){
   if (arduboy.justPressed(A_BUTTON | B_BUTTON)) {
     gameState = GS_MENU;
   }
-}
-
-void updateDelay(){
-  delay(2000);
-  gameState = GS_WIN;
 }
 
 void updatePaused(){
@@ -170,7 +168,6 @@ void updateMenu(){
     gameState = GS_PLAYING;
     startGame(menu.cursorPuzzleNumber - 1);
   }
-
 }
 
 void updateGrid(){  
@@ -200,9 +197,7 @@ void updateGrid(){
       if (cursorCell()->state == CS_FILL){
         cursorCell()->state = CS_EMPTY;
       } else {
-//        if (gamePuzzle.cellFilled[gameGrid.cursorX][gameGrid.cursorY]) {
-          cursorCell()->state = CS_FILL;
-//        }
+        cursorCell()->state = CS_FILL;
       }
       checkPuzzleComplete();
     }
@@ -255,7 +250,7 @@ void drawPuzzleSelection(){
     for (byte y = 0; y < MENU_HEIGHT; y++){
       byte drawX = MENU_X_OFFSET + (x * (CELL_SIZE - 1));
       byte drawY = MENU_Y_OFFSET + (y * (CELL_SIZE - 1));
-      if (x==0 && y==0){
+      if (EEPROM.read(BASE_EEPROM_LOCATION + (x+1) + (MENU_WIDTH * y))){
         arduboy.fillRect(drawX+1, drawY+1, CELL_SIZE-2, CELL_SIZE-2, WHITE);
       } else {
         arduboy.drawLine(drawX + 2, drawY + 2, drawX + 4, drawY + 4, WHITE);
@@ -431,7 +426,7 @@ void initializeGrid(){
   for (byte x = 0; x < GRID_WIDTH; x++){
     for (byte y = 0; y < GRID_HEIGHT; y++){
       Cell newCell;
-      newCell.state = CS_EMPTY; // gamePuzzle.cellFilled[x][y]; 
+      newCell.state = CS_EMPTY;
       gameGrid.cells[x][y] = newCell;
     }
   }
@@ -460,6 +455,25 @@ void checkPuzzleComplete(){
       }
     }
   }
+  EEPROM.put(BASE_EEPROM_LOCATION + 1 + gamePuzzle.puzzleIndex, true);
   gameState = GS_DELAY;
+}
+
+void initEEPROM(){
+  byte checksum = dumbPuzzleChecksum();
+  if (EEPROM.read(BASE_EEPROM_LOCATION) != checksum) {
+    EEPROM.put(BASE_EEPROM_LOCATION, checksum);
+    clearEEPROM();
+  }
+}
+
+void clearEEPROM(){
+  for (byte puzzle = 1; puzzle <= SUPPORTED_PUZZLE_COUNT; puzzle++){
+    EEPROM.put(BASE_EEPROM_LOCATION + puzzle, 0);
+  }
+}
+
+byte dumbPuzzleChecksum(){
+  return puzzles[0][0] ^ puzzles[1][1] ^ puzzles[2][2] ^ 0x69;
 }
 

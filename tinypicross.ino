@@ -1,10 +1,16 @@
 /*
  * Tiny Arduboy version of Picross
+ * 
+ * TODO
+ * - try adjusted spacing between double digit numbers
+ * - add puzzle number indicator to puzzle screen
+ * - timer?
+ * - move puzzles into PROGMEM
  */
 
-#include <Tinyfont.h>
 #include <Arduboy2.h>
 #include "puzzles.h"
+#include "tinyfont.h"
 
 #define GRID_WIDTH 15
 #define GRID_HEIGHT 7
@@ -59,8 +65,8 @@ struct Grid {
 struct Puzzle {
   public:
     bool cellFilled[GRID_WIDTH][GRID_HEIGHT]; // wasteful, but we have extra memory
-    byte columnHints[GRID_WIDTH][COLUMN_HINT_MAX_NUMS];
-    byte rowHints[GRID_HEIGHT][ROW_HINT_MAX_NUMS];
+    byte columnHints[GRID_WIDTH][COLUMN_HINT_MAX_NUMS + 1]; // possible index bound issues?
+    byte rowHints[GRID_HEIGHT][ROW_HINT_MAX_NUMS +1 ]; // possible index bound issues?
     byte puzzleIndex;
 };
 
@@ -418,8 +424,7 @@ void initializePuzzle(byte puzzleIndex){
         gamePuzzle.rowHints[y][hintIndex] = hintNum;
       }
     }
-  }
-  
+  }  
 }
 
 void initializeGrid(){
@@ -455,7 +460,6 @@ void checkPuzzleComplete(){
       }
     }
   }
-  EEPROM.put(BASE_EEPROM_LOCATION + 1 + gamePuzzle.puzzleIndex, true);
   gameState = GS_DELAY;
 }
 

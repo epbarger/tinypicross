@@ -1,5 +1,3 @@
-require 'pry'
-
 puzzles = []
 Dir.glob('gnonogram_saves/*.gno').sort_by { |fn| fn.match(/\d+/)[0].to_i }.each do |gno_file|
   output = `cat #{gno_file} | grep "Solution" -A 7`

@@ -120,6 +120,7 @@ void updateState(){
       updateMenu();
       break;
     case GS_PLAYING:
+//      Serial.println(gamePuzzle.puzzleIndex);
       updateGrid();
       break;
     case GS_PAUSED:
@@ -377,8 +378,7 @@ void initializePuzzle(byte puzzleIndex){
   gamePuzzle.puzzleIndex = puzzleIndex;
   for (byte x = 0; x < GRID_WIDTH; x++){
     for (byte y = 0; y < GRID_HEIGHT; y++){
-      const byte * puzzleToLoad = puzzles[puzzleIndex];
-      bool cellFilled = pgm_read_byte_near(&puzzleToLoad[x]) & pgm_read_byte_near(&bitMaskForYIndex[y]);
+      bool cellFilled = pgm_read_byte_near(&puzzles[puzzleIndex][x]) & pgm_read_byte_near(&bitMaskForYIndex[y]);
       gamePuzzle.cellFilled[x][y] = cellFilled;
       for (byte i = 0; i < ROW_HINT_MAX_NUMS; i++){
         gamePuzzle.rowHints[y][i] = 0;
@@ -464,11 +464,11 @@ void checkPuzzleComplete(){
 }
 
 void initEEPROM(){
-  byte checksum = dumbPuzzleChecksum();
-  if (EEPROM.read(BASE_EEPROM_LOCATION) != checksum) {
-    EEPROM.put(BASE_EEPROM_LOCATION, checksum);
-    clearEEPROM();
-  }
+//  byte checksum = dumbPuzzleChecksum();
+//  if (EEPROM.read(BASE_EEPROM_LOCATION) != checksum) {
+//    EEPROM.put(BASE_EEPROM_LOCATION, checksum);
+//    clearEEPROM();
+//  }
 }
 
 void clearEEPROM(){

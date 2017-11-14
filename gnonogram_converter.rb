@@ -8,18 +8,13 @@ end
 
 File.open("puzzles.h.generated", "w") do |file|
   file.puts("#define PUZZLE_COUNT #{puzzles.size}\n\n")
-
+  file.puts("const byte puzzles[PUZZLE_COUNT][15] PROGMEM = {") 
   puzzles.each_with_index do |p, p_index|
-    file.puts("const byte puzzle#{p_index+1}[15] PROGMEM = {")
+    file.print("  {")
     15.times do |i|
-      file.puts("  0b#{p[0][i]}#{p[1][i]}#{p[2][i]}#{p[3][i]}#{p[4][i]}#{p[5][i]}#{p[6][i]}#{i + 1 == 15 ? '' : ', '}")
+      file.print("0b#{p[0][i]}#{p[1][i]}#{p[2][i]}#{p[3][i]}#{p[4][i]}#{p[5][i]}#{p[6][i]}#{i + 1 == 15 ? '' : ', '}")
     end
-    file.puts("};\n\n")
-  end
-
-  file.puts("const byte *const puzzles[PUZZLE_COUNT] = {")
-  puzzles.size.times do |i|
-    file.puts("  puzzle#{i+1}#{i + 1 == puzzles.size ? '' : ', '}")
+    file.puts("},")
   end
   file.puts("};")
 end

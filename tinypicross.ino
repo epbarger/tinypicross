@@ -5,7 +5,6 @@
  * - try adjusted spacing between double digit numbers
  * - add puzzle number indicator to puzzle screen
  * - timer?
- * - move puzzles into PROGMEM
  */
 
 #include <Arduboy2.h>
@@ -120,7 +119,6 @@ void updateState(){
       updateMenu();
       break;
     case GS_PLAYING:
-//      Serial.println(gamePuzzle.puzzleIndex);
       updateGrid();
       break;
     case GS_PAUSED:
@@ -460,15 +458,16 @@ void checkPuzzleComplete(){
       }
     }
   }
+  EEPROM.put(BASE_EEPROM_LOCATION + 1 + gamePuzzle.puzzleIndex, true);
   gameState = GS_DELAY;
 }
 
 void initEEPROM(){
-//  byte checksum = dumbPuzzleChecksum();
-//  if (EEPROM.read(BASE_EEPROM_LOCATION) != checksum) {
-//    EEPROM.put(BASE_EEPROM_LOCATION, checksum);
-//    clearEEPROM();
-//  }
+  byte checksum = dumbPuzzleChecksum();
+  if (EEPROM.read(BASE_EEPROM_LOCATION) != checksum) {
+    EEPROM.put(BASE_EEPROM_LOCATION, checksum);
+    clearEEPROM();
+  }
 }
 
 void clearEEPROM(){

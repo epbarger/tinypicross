@@ -2,14 +2,12 @@
  * Tiny Arduboy version of Picross
  * 
  * TODO
- * - try adjusted spacing between double digit numbers
- * - add puzzle number indicator to puzzle screen
  * - timer?
  */
 
 #include <Arduboy2.h>
-#include "puzzles.h"
 #include "tinyfont.h"
+#include "puzzles.h"
 
 #define GRID_WIDTH 15
 #define GRID_HEIGHT 7
@@ -67,6 +65,7 @@ struct Puzzle {
     byte columnHints[GRID_WIDTH][COLUMN_HINT_MAX_NUMS + 1]; // possible index bound issues?
     byte rowHints[GRID_HEIGHT][ROW_HINT_MAX_NUMS +1 ]; // possible index bound issues?
     byte puzzleIndex;
+    bool eepromState;
 };
 
 struct Menu {
@@ -274,6 +273,17 @@ void drawPuzzleSelection(){
 }
 
 void drawGrid(){
+  char first = '>';
+  char last = '<';
+  if (gamePuzzle.eepromState){
+    char tmp = first;
+    first = last;
+    last = tmp;
+  }
+  tinyfont.setTextColor(WHITE);
+  tinyfont.setCursor(1,1);
+  tinyfont.print(first + String(gamePuzzle.puzzleIndex + 1) + last);
+  
   for (byte x = 0; x < GRID_WIDTH; x++){
     for (byte y = 0; y < GRID_HEIGHT; y++){
       byte drawX = GRID_X_OFFSET + (x * (CELL_SIZE - 1));
@@ -354,10 +364,18 @@ void drawHintRow(byte rowIndex){
   for (int i = ROW_HINT_MAX_NUMS - 1; i >= 0; i--){
     byte hintNum = gamePuzzle.rowHints[rowIndex][i];
     if (hintNum > 0) {
-      if (hintNum > 9) { drawIndexX -= 5; }
-      tinyfont.setCursor(drawIndexX, drawIndexY);
-      tinyfont.print(String(hintNum));
-      drawIndexX -= 6;
+      if (hintNum > 9) { 
+        drawIndexX -= 4;
+        tinyfont.setCursor(drawIndexX, drawIndexY);
+        tinyfont.print(String(hintNum).charAt(0));
+        tinyfont.setCursor(drawIndexX+4, drawIndexY);
+        tinyfont.print(String(hintNum).charAt(1));
+        drawIndexX -= 8;
+      } else {
+        tinyfont.setCursor(drawIndexX, drawIndexY);
+        tinyfont.print(String(hintNum));
+        drawIndexX -= 6;
+      }
     } else {
       zeroHints++;
     }
@@ -374,6 +392,7 @@ void drawHintRow(byte rowIndex){
 
 void initializePuzzle(byte puzzleIndex){
   gamePuzzle.puzzleIndex = puzzleIndex;
+  gamePuzzle.eepromState = EEPROM.read(BASE_EEPROM_LOCATION + 1 + gamePuzzle.puzzleIndex);
   for (byte x = 0; x < GRID_WIDTH; x++){
     for (byte y = 0; y < GRID_HEIGHT; y++){
       bool cellFilled = pgm_read_byte_near(&puzzles[puzzleIndex][x]) & pgm_read_byte_near(&bitMaskForYIndex[y]);

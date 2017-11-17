@@ -218,16 +218,20 @@ void drawState(){
       drawPuzzleSelection();
       break;
     case GS_PLAYING:
+      drawHUD();
       drawGrid();
       break;
     case GS_PAUSED:
+      drawHUD();
       drawGrid();
       drawMessage(F("RETURN TO MENU?"),27,30);
       break;
     case GS_DELAY:
+      drawHUD();
       drawGrid();
       break;
     case GS_WIN:
+      drawHUD();
       drawGrid();
       drawMessage(F("PUZZLE COMPLETE!"), 25, 30);
   }
@@ -272,18 +276,24 @@ void drawPuzzleSelection(){
   drawMenuRow(cursorPuzzleNumber);
 }
 
-void drawGrid(){
-  char first = '>';
-  char last = '<';
+void drawHUD(){
+  char first = ')';
+  char last = '(';
   if (gamePuzzle.eepromState){
     char tmp = first;
     first = last;
     last = tmp;
   }
   tinyfont.setTextColor(WHITE);
-  tinyfont.setCursor(1,1);
-  tinyfont.print(first + String(gamePuzzle.puzzleIndex + 1) + last);
-  
+  byte numX = 8;
+  byte puzzleNumber = gamePuzzle.puzzleIndex + 1;
+  if (puzzleNumber >= 10) { numX -= 2; }
+  if (puzzleNumber >= 100) { numX -= 3; }
+  tinyfont.setCursor(numX, 3);
+  tinyfont.print(first + String(puzzleNumber) + last);
+}
+
+void drawGrid(){
   for (byte x = 0; x < GRID_WIDTH; x++){
     for (byte y = 0; y < GRID_HEIGHT; y++){
       byte drawX = GRID_X_OFFSET + (x * (CELL_SIZE - 1));

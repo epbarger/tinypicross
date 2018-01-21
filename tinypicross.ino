@@ -57,6 +57,8 @@ struct Grid {
     Cell cells[GRID_WIDTH][GRID_HEIGHT];
     char cursorX;
     char cursorY;
+    unsigned long startMillis;
+    unsigned long currentMillis;
 };
 
 struct Puzzle {
@@ -119,9 +121,11 @@ void updateState(){
       break;
     case GS_PLAYING:
       updateGrid();
+      updateTimer();
       break;
     case GS_PAUSED:
       updatePaused();
+      updateTimer();
       break;
     case GS_DELAY:
       delay(2000);
@@ -174,7 +178,11 @@ void updateMenu(){
   }
 }
 
-void updateGrid(){  
+void updateTimer(){
+  gameGrid.currentMillis = millis();
+}
+
+void updateGrid(){    
   if (arduboy.pressed(UP_BUTTON | DOWN_BUTTON | LEFT_BUTTON | RIGHT_BUTTON)){
     gameState = GS_PAUSED;
   } else {
@@ -277,20 +285,19 @@ void drawPuzzleSelection(){
 }
 
 void drawHUD(){
-  char first = ')';
-  char last = '(';
-  if (gamePuzzle.eepromState){
-    char tmp = first;
-    first = last;
-    last = tmp;
-  }
   tinyfont.setTextColor(WHITE);
-  byte numX = 8;
   byte puzzleNumber = gamePuzzle.puzzleIndex + 1;
-  if (puzzleNumber >= 10) { numX -= 2; }
-  if (puzzleNumber >= 100) { numX -= 3; }
-  tinyfont.setCursor(numX, 3);
-  tinyfont.print(first + String(puzzleNumber) + last);
+
+  tinyfont.setCursor(3, 3);
+  tinyfont.print(timerString());
+
+  tinyfont.setCursor(3, 8);
+  if (gamePuzzle.eepromState){
+    char finishedChar = 127;
+    tinyfont.print(finishedChar + String(puzzleNumber));
+  } else {
+    tinyfont.print(String(puzzleNumber));
+  }
 }
 
 void drawGrid(){
@@ -451,7 +458,7 @@ void initializePuzzle(byte puzzleIndex){
         gamePuzzle.rowHints[y][hintIndex] = hintNum;
       }
     }
-  }  
+  }
 }
 
 void initializeGrid(){
@@ -464,6 +471,7 @@ void initializeGrid(){
   }
   gameGrid.cursorX = 0;
   gameGrid.cursorY = 0;
+  gameGrid.startMillis = millis();
 }
 
 Cell* cursorCell(){
@@ -477,6 +485,17 @@ int modulo(int x, int y){
 void startGame(byte puzzleIndex){
   initializePuzzle(puzzleIndex);
   initializeGrid();
+}
+
+char* timerString(){
+  int secondsElapsed = (gameGrid.currentMillis - gameGrid.startMillis) / 1000;
+  char secondsBuf[3];
+  char minutesBuf[3];
+  char buf[6];
+  sprintf(secondsBuf, "%02d\0", secondsElapsed % 60);
+  sprintf(minutesBuf, "%02d\0", secondsElapsed / 60);
+  sprintf(buf, "%s:%s\0", minutesBuf, secondsBuf);
+  return buf;
 }
 
 void checkPuzzleComplete(){

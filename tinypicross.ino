@@ -24,6 +24,7 @@
 
 #define BASE_EEPROM_LOCATION 100
 #define SUPPORTED_PUZZLE_COUNT MENU_WIDTH * MENU_HEIGHT
+#define ANIMATION_MAX 9
 
 // Cell states
 #define CS_EMPTY 0
@@ -36,6 +37,7 @@
 #define GS_PAUSED 2
 #define GS_WIN 3
 #define GS_DELAY 4
+#define GS_ANIMATION 5
 
 const byte bitMaskForYIndex[7] PROGMEM {
   0b01000000,
@@ -88,6 +90,7 @@ Menu menu;
 
 byte gameState = GS_MENU;
 bool okayToAbandon = false;
+byte animationFrame = 0;
 
 void setup() {
   arduboy.boot();
@@ -129,7 +132,11 @@ void updateState(){
       break;
     case GS_DELAY:
       delay(2000);
-      gameState = GS_WIN;
+      gameState = GS_ANIMATION;
+      animationFrame = 0;
+      break;
+    case GS_ANIMATION:
+      updateAnimation();
       break;
     case GS_WIN:
       updateWin();
@@ -180,6 +187,15 @@ void updateMenu(){
 
 void updateTimer(){
   gameGrid.currentMillis = millis();
+}
+
+void updateAnimation(){
+  if (animationFrame <= ANIMATION_MAX){
+    animationFrame++;
+  } else {
+    gameState = GS_WIN;
+    delay(2000);
+  }
 }
 
 void updateGrid(){    
@@ -238,9 +254,13 @@ void drawState(){
       drawHUD();
       drawGrid();
       break;
+    case GS_ANIMATION:
+      drawGridAnimation();
+      break;
     case GS_WIN:
-      drawHUD();
-      drawGrid();
+//      drawHUD();
+//      drawGrid();
+      drawGridAnimation();
       drawMessage(F("PUZZLE COMPLETE!"), 25, 30);
   }
   arduboy.display();
@@ -288,10 +308,14 @@ void drawHUD(){
   tinyfont.setTextColor(WHITE);
   byte puzzleNumber = gamePuzzle.puzzleIndex + 1;
 
-  tinyfont.setCursor(3, 3);
+  tinyfont.setCursor(3, 4);
   tinyfont.print(timerString());
 
-  tinyfont.setCursor(3, 8);
+  for(byte x = 2; x < 28; x=x+2){
+    arduboy.drawPixel(x, 9);
+  }
+  
+  tinyfont.setCursor(3, 11);
   if (gamePuzzle.eepromState){
     char finishedChar = 127;
     tinyfont.print(finishedChar + String(puzzleNumber));
@@ -300,11 +324,19 @@ void drawHUD(){
   }
 }
 
-void drawGrid(){
-  for (byte x = 0; x < GRID_WIDTH; x++){
-    for (byte y = 0; y < GRID_HEIGHT; y++){
-      byte drawX = GRID_X_OFFSET + (x * (CELL_SIZE - 1));
-      byte drawY = GRID_Y_OFFSET + (y * (CELL_SIZE - 1));
+void drawGridAnimation(){
+  drawCustomGrid(GRID_WIDTH,
+                 GRID_HEIGHT,
+                 GRID_X_OFFSET - animationFrame - (animationFrame / 2),
+                 GRID_Y_OFFSET - animationFrame,
+                 CELL_SIZE + animationFrame / ANIMATION_MAX);
+}
+
+void drawCustomGrid(byte gridWidth, byte gridHeight, byte gridXOffset, byte gridYOffset, byte cellSize){
+  for (byte x = 0; x < gridWidth; x++){
+    for (byte y = 0; y < gridHeight; y++){
+      byte drawX = gridXOffset + (x * (CELL_SIZE - 1));
+      byte drawY = gridYOffset + (y * (CELL_SIZE - 1));
       switch(gameGrid.cells[x][y].state){
         case CS_EMPTY:
           break;
@@ -313,11 +345,15 @@ void drawGrid(){
           arduboy.drawLine(drawX + 4, drawY + 2, drawX + 2, drawY + 4, WHITE);
           break;
         case CS_FILL:
-          arduboy.fillRect(drawX+1, drawY+1, CELL_SIZE-2, CELL_SIZE-2, WHITE);
+          arduboy.fillRect(drawX+1, drawY+1, cellSize-2, cellSize-2, WHITE);
           break;
       }
     }
-  }
+  } 
+}
+
+void drawGrid(){
+  drawCustomGrid(GRID_WIDTH, GRID_HEIGHT, GRID_X_OFFSET, GRID_Y_OFFSET, CELL_SIZE);
 
   arduboy.fillRect(GRID_X_OFFSET + 1 + (gameGrid.cursorX * (CELL_SIZE - 1)), 0, CELL_SIZE - 1, GRID_Y_OFFSET - 2, WHITE);
 
@@ -466,6 +502,9 @@ void initializeGrid(){
     for (byte y = 0; y < GRID_HEIGHT; y++){
       Cell newCell;
       newCell.state = CS_EMPTY;
+      if (gamePuzzle.cellFilled[x][y]){
+        newCell.state = CS_FILL;
+      }
       gameGrid.cells[x][y] = newCell;
     }
   }

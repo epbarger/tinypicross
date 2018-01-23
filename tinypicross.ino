@@ -1,8 +1,5 @@
 /*
  * Tiny Arduboy version of Picross
- * 
- * TODO
- * - timer?
  */
 
 #include <Arduboy2.h>
@@ -91,6 +88,7 @@ Menu menu;
 byte gameState = GS_MENU;
 bool okayToAbandon = false;
 byte animationFrame = 0;
+char timerBuf[6];
 
 void setup() {
   arduboy.boot();
@@ -187,6 +185,7 @@ void updateMenu(){
 
 void updateTimer(){
   gameGrid.currentMillis = millis();
+  buildTimerString();
 }
 
 void updateAnimation(){
@@ -194,7 +193,7 @@ void updateAnimation(){
     animationFrame++;
   } else {
     gameState = GS_WIN;
-    delay(2000);
+    delay(1000);
   }
 }
 
@@ -258,12 +257,26 @@ void drawState(){
       drawGridAnimation();
       break;
     case GS_WIN:
-//      drawHUD();
-//      drawGrid();
       drawGridAnimation();
-      drawMessage(F("PUZZLE COMPLETE!"), 25, 30);
+      drawWinMessage();
   }
   arduboy.display();
+}
+
+void drawWinMessage(){
+  tinyfont.setTextColor(BLACK);
+  arduboy.fillRect(0,0,screenWidth,6,WHITE);
+
+  byte px = 20;
+  byte puzzleNumber = gamePuzzle.puzzleIndex+1+100;
+  if (puzzleNumber >= 10) { px = px - 3; }
+  if (puzzleNumber >= 100) { px = px - 2; }
+  
+  tinyfont.setCursor(px, 1);
+  tinyfont.print("PUZZLE " + String(puzzleNumber) + " COMPLETE!");
+  arduboy.fillRect(0,58,screenWidth,6,WHITE);
+  tinyfont.setCursor(36, 59);
+  tinyfont.print("TIME: " + String(timerBuf));
 }
 
 void drawMessage(String msg, byte x, byte y){
@@ -278,6 +291,8 @@ void drawTitle(){
   tinyfont.setTextColor(BLACK);
   tinyfont.setCursor(1,1);
   tinyfont.print(F("TINY PICROSS"));
+  tinyfont.setCursor(118, 1);
+  tinyfont.print(F("V2"));
   tinyfont.setTextColor(WHITE);
 }
 
@@ -309,7 +324,7 @@ void drawHUD(){
   byte puzzleNumber = gamePuzzle.puzzleIndex + 1;
 
   tinyfont.setCursor(3, 4);
-  tinyfont.print(timerString());
+  tinyfont.print(timerBuf);
 
   for(byte x = 2; x < 28; x=x+2){
     arduboy.drawPixel(x, 9);
@@ -317,22 +332,23 @@ void drawHUD(){
   
   tinyfont.setCursor(3, 11);
   if (gamePuzzle.eepromState){
-    char finishedChar = 127;
+    char finishedChar = '#';
     tinyfont.print(finishedChar + String(puzzleNumber));
   } else {
-    tinyfont.print(String(puzzleNumber));
+    tinyfont.print(String(timerBuf));
   }
 }
 
 void drawGridAnimation(){
-  drawCustomGrid(GRID_WIDTH,
+  drawCustomGrid(true,
+                 GRID_WIDTH,
                  GRID_HEIGHT,
                  GRID_X_OFFSET - animationFrame - (animationFrame / 2),
                  GRID_Y_OFFSET - animationFrame,
                  CELL_SIZE + animationFrame / ANIMATION_MAX);
 }
 
-void drawCustomGrid(byte gridWidth, byte gridHeight, byte gridXOffset, byte gridYOffset, byte cellSize){
+void drawCustomGrid(bool fillOnly, byte gridWidth, byte gridHeight, byte gridXOffset, byte gridYOffset, byte cellSize){
   for (byte x = 0; x < gridWidth; x++){
     for (byte y = 0; y < gridHeight; y++){
       byte drawX = gridXOffset + (x * (CELL_SIZE - 1));
@@ -341,8 +357,10 @@ void drawCustomGrid(byte gridWidth, byte gridHeight, byte gridXOffset, byte grid
         case CS_EMPTY:
           break;
         case CS_X:
-          arduboy.drawLine(drawX + 2, drawY + 2, drawX + 4, drawY + 4, WHITE);
-          arduboy.drawLine(drawX + 4, drawY + 2, drawX + 2, drawY + 4, WHITE);
+          if (!fillOnly) {
+            arduboy.drawLine(drawX + 2, drawY + 2, drawX + 4, drawY + 4, WHITE);
+            arduboy.drawLine(drawX + 4, drawY + 2, drawX + 2, drawY + 4, WHITE);
+          }
           break;
         case CS_FILL:
           arduboy.fillRect(drawX+1, drawY+1, cellSize-2, cellSize-2, WHITE);
@@ -353,7 +371,7 @@ void drawCustomGrid(byte gridWidth, byte gridHeight, byte gridXOffset, byte grid
 }
 
 void drawGrid(){
-  drawCustomGrid(GRID_WIDTH, GRID_HEIGHT, GRID_X_OFFSET, GRID_Y_OFFSET, CELL_SIZE);
+  drawCustomGrid(false, GRID_WIDTH, GRID_HEIGHT, GRID_X_OFFSET, GRID_Y_OFFSET, CELL_SIZE);
 
   arduboy.fillRect(GRID_X_OFFSET + 1 + (gameGrid.cursorX * (CELL_SIZE - 1)), 0, CELL_SIZE - 1, GRID_Y_OFFSET - 2, WHITE);
 
@@ -502,9 +520,6 @@ void initializeGrid(){
     for (byte y = 0; y < GRID_HEIGHT; y++){
       Cell newCell;
       newCell.state = CS_EMPTY;
-      if (gamePuzzle.cellFilled[x][y]){
-        newCell.state = CS_FILL;
-      }
       gameGrid.cells[x][y] = newCell;
     }
   }
@@ -526,15 +541,14 @@ void startGame(byte puzzleIndex){
   initializeGrid();
 }
 
-char* timerString(){
+void buildTimerString(){
   int secondsElapsed = (gameGrid.currentMillis - gameGrid.startMillis) / 1000;
   char secondsBuf[3];
   char minutesBuf[3];
   char buf[6];
   sprintf(secondsBuf, "%02d\0", secondsElapsed % 60);
   sprintf(minutesBuf, "%02d\0", secondsElapsed / 60);
-  sprintf(buf, "%s:%s\0", minutesBuf, secondsBuf);
-  return buf;
+  sprintf(timerBuf, "%s:%s\0", minutesBuf, secondsBuf);
 }
 
 void checkPuzzleComplete(){

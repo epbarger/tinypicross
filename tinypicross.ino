@@ -335,7 +335,7 @@ void drawHUD(){
     char finishedChar = '#';
     tinyfont.print(finishedChar + String(puzzleNumber));
   } else {
-    tinyfont.print(String(timerBuf));
+    tinyfont.print(String(puzzleNumber));
   }
 }
 

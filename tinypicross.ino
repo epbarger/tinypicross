@@ -268,7 +268,7 @@ void drawWinMessage(){
   arduboy.fillRect(0,0,screenWidth,6,WHITE);
 
   byte px = 20;
-  byte puzzleNumber = gamePuzzle.puzzleIndex+1+100;
+  byte puzzleNumber = gamePuzzle.puzzleIndex+1;
   if (puzzleNumber >= 10) { px = px - 3; }
   if (puzzleNumber >= 100) { px = px - 2; }
   

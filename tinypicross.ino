@@ -149,14 +149,14 @@ void updateWin(){
 }
 
 void updatePaused(){
-  if (!okayToAbandon && arduboy.notPressed(UP_BUTTON | DOWN_BUTTON | LEFT_BUTTON | RIGHT_BUTTON)){
+  if (!okayToAbandon && arduboy.notPressed(UP_BUTTON | A_BUTTON | B_BUTTON)){ // UP_BUTTON | DOWN_BUTTON | LEFT_BUTTON | RIGHT_BUTTON
     okayToAbandon = true;
   }
   
-  if (okayToAbandon && arduboy.pressed(UP_BUTTON | DOWN_BUTTON | LEFT_BUTTON | RIGHT_BUTTON)){
+  if (okayToAbandon && arduboy.pressed(B_BUTTON)){ // UP_BUTTON | DOWN_BUTTON | LEFT_BUTTON | RIGHT_BUTTON
     okayToAbandon = false;
     gameState = GS_MENU;
-  } else if (arduboy.justPressed(A_BUTTON | B_BUTTON)) {
+  } else if (arduboy.justPressed(A_BUTTON)) { // A_BUTTON | B_BUTTON
     okayToAbandon = false;
     gameState = GS_PLAYING;
   }
@@ -198,7 +198,7 @@ void updateAnimation(){
 }
 
 void updateGrid(){    
-  if (arduboy.pressed(UP_BUTTON | DOWN_BUTTON | LEFT_BUTTON | RIGHT_BUTTON)){
+  if (arduboy.pressed(UP_BUTTON | A_BUTTON | B_BUTTON)){ // UP_BUTTON | DOWN_BUTTON | LEFT_BUTTON | RIGHT_BUTTON
     gameState = GS_PAUSED;
   } else {
     if (arduboy.justPressed(RIGHT_BUTTON)){
